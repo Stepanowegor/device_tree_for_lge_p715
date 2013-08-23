@@ -1,0 +1,127 @@
+# Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are
+# met:
+#     * Redistributions of source code must retain the above copyright
+#       notice, this list of conditions and the following disclaimer.
+#     * Redistributions in binary form must reproduce the above
+#       copyright notice, this list of conditions and the following
+#       disclaimer in the documentation and/or other materials provided
+#       with the distribution.
+#     * Neither the name of Code Aurora Forum, Inc. nor the names of its
+#       contributors may be used to endorse or promote products derived
+#       from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+# WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
+# ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+# BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+# BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+# OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+# IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+#
+on early-boot
+    start comp-set
+
+on emmc-fs
+    mount_all /fstab.vee7
+
+    # Keeping following partitions outside fstab file. As user may not have
+    # these partition flashed on the device. Failure to mount any partition in fstab file
+    # results in failure to launch late-start class.
+
+#    wait /dev/block/platform/msm_sdcc.3/by-num/p15
+#    mount ext4 /dev/block/platform/msm_sdcc.3/by-num/p15 /cache nosuid nodev barrier=1
+    
+    wait /dev/block/platform/msm_sdcc.3/by-num/p16
+    exec /system/bin/e2fsck -fy /dev/block/platform/msm_sdcc.3/by-num/p16
+    mount ext4 /dev/block/platform/msm_sdcc.3/by-num/p16 /cache nosuid nodev barrier=1
+
+#    wait /dev/block/platform/msm_sdcc.3/by-num/p14
+#    mount ext4 /dev/block/platform/msm_sdcc.3/by-num/p14 /persist nosuid nodev barrier=1
+    
+    wait /dev/block/platform/msm_sdcc.3/by-num/p15
+    exec /system/bin/e2fsck -fy /dev/block/platform/msm_sdcc.3/by-num/p15
+    mount ext4 /dev/block/platform/msm_sdcc.3/by-num/p15 /persist nosuid nodev barrier=1
+ 
+    wait /dev/block/platform/msm_sdcc.3/by-num/p18
+    exec /system/bin/e2fsck -fy /dev/block/platform/msm_sdcc.3/by-num/p18
+    mount ext4 /dev/block/platform/msm_sdcc.3/by-num/p18 /persist-lg nosuid nodev barrier=1
+#LGE_CHANGE_S [satya.kamasali@lge.com] 20121008:MPT Partition
+        wait /dev/block/platform/msm_sdcc.3/by-num/p23
+    exec /system/bin/e2fsck -fy /dev/block/platform/msm_sdcc.3/by-num/p23
+    mount ext4 /dev/block/platform/msm_sdcc.3/by-num/p23 /mpt nosuid nodev barrier=1
+#LGE_CHANGE_E [satya.kamasali@lge.com] 20121008
+
+	wait /dev/block/platform/msm_sdcc.3/by-num/p25
+	exec /system/bin/e2fsck -fy /dev/block/platform/msm_sdcc.3/by-num/p25
+	mount ext4 /dev/block/platform/msm_sdcc.3/by-num/p25 /cust ro nosuid nodev barrier=1
+	
+on boot
+   start qcamerasvr
+    chown system system /sys/devices/virtual/input/lge_touch/keyguard
+   chown system system /sys/devices/virtual/input/lge_touch/incoming_call
+	chown system system /sys/devices/virtual/input/lge_touch/ts_first_enable 
+    chown system system /sys/devices/platform/msm_fb.525057/mdp_kcal
+on post-fs
+    exec /system/bin/sh /system/etc/init.qcom.thermald_conf.sh
+
+service ril-qmi /system/bin/sh /init.qcom.ril.path.sh
+    class main
+    user root
+    oneshot
+
+service comp-set /system/bin/sh /system/etc/init.qcom.composition_type.sh
+    class late_start
+    user root
+    critical
+    disabled
+    oneshot
+
+service wlan_tool /system/bin/wlan_tool
+    class late_start
+    user root
+    group wifi system net_admin inet shell
+    oneshot
+
+#start camera server as daemon
+service qcamerasvr /system/bin/mm-qcamera-daemon
+        class late_start
+        user camera
+        group camera system inet audio
+
+service thermald /system/bin/thermald
+   class late_start
+   user root
+   group root
+   disabled
+
+service mpdecision /system/bin/mpdecision --no_sleep --avg_comp
+        class late_start
+	user root
+	disabled
+
+on property:sys.radio.shutdown=true
+   exec /system/bin/sh /system/etc/init.qcom.efs.sync.sh
+   user root
+   group root
+
+service gpu_dcvsd /system/bin/gpu_dcvsd
+    class late_start
+    user root
+    oneshot
+
+# Generate Coredump file to debug a process crash.
+# [blue.park@lge.com] <For Blue Error Handler V1.3>
+on property:ro.build.type=eng
+	setrlimit 4 -1 -1
+	write /proc/sys/kernel/core_uses_pid 1
+	write /proc/sys/kernel/core_pattern "|/system/bin/blue_error_report -o %e.%p"
+	write /proc/sys/fs/suid_dumpable 1
+	write /proc/sys/kernel/dmesg_restrict 0

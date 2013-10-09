@@ -131,7 +131,9 @@ PRODUCT_PACKAGES += \
 	liboverlay \
 	hwcomposer.msm7627a \
 	gralloc.msm7627a \
-	copybit.msm7627a
+	copybit.msm7627a \
+        libtilerenderer \
+        libQcomUI
 
 PRODUCT_PACKAGES += \
 	alsa.msm7627a \
